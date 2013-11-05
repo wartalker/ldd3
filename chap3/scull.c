@@ -1,0 +1,212 @@
+/*
+ * =====================================================================================
+ *
+ *       Filename:  scull.c
+ *
+ *    Description:  
+ *
+ *        Version:  1.0
+ *        Created:  11/04/2013 03:02:11 PM
+ *       Revision:  none
+ *       Compiler:  gcc
+ *
+ *         Author:  wartalker (LiuWei), wartalker@gmail.com
+ *   Organization:  
+ *
+ * =====================================================================================
+ */
+
+
+#include "linux/init.h"
+#include <linux/module.h>
+#include <asm/uaccess.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+
+
+MODULE_LICENSE("Dual BSD/GPL");
+
+struct scull_dev {
+	char * data;
+	unsigned long size;
+	struct semaphore sem;
+	struct cdev cdev;
+};
+
+
+int scull_major = 0;
+int scull_minor = 0;
+
+static struct scull_dev *sdev;
+
+static int scull_open(struct inode *inode, struct file *filp)
+{
+	struct scull_dev *dev;
+
+	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
+	filp->private_data = dev;
+
+	return 0;
+}
+
+
+static int scull_release(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+{
+	struct scull_dev *dev = filp->private_data;
+	ssize_t ret = 0;
+
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+
+	if (*f_pos > dev->size)
+		goto final;
+
+	if (*f_pos + count > dev->size)
+		count = dev->size - *f_pos;
+
+	if (copy_to_user(buf, dev->data + *f_pos, count)) {
+		ret = -EFAULT;
+		goto final;
+	}
+
+	if (f_pos)
+		*f_pos += count;
+	ret = count;
+
+final:
+	up(&dev->sem);
+	return ret;
+}
+
+static ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+{
+	struct scull_dev *dev = filp->private_data;
+	ssize_t ret = -ENOMEM;
+
+	if (down_interruptible(&dev->sem))
+		return -ERESTARTSYS;
+
+	if (*f_pos > dev->size)
+		goto final;
+
+	if (*f_pos + count > dev->size)
+		count = dev->size - *f_pos;
+
+	if (copy_from_user(dev->data + *f_pos, buf, count)) {
+		ret = -EFAULT;
+		goto final;
+	}	
+
+	if (*f_pos)
+		*f_pos += count;
+
+	ret = count;
+
+final:
+	up(&dev->sem);
+	return ret;
+}
+
+struct file_operations scull_fops = {
+	.owner = THIS_MODULE,
+	.open = scull_open,
+	.read = scull_read,
+	.write = scull_write,
+	.release = scull_release,
+};
+
+static int scull_reg(struct scull_dev *dev)
+{
+	int ret;
+	dev_t dt = 0;
+
+	ret = alloc_chrdev_region(&dt, scull_minor, 1, "scull");
+	scull_major = MAJOR(dt);
+
+	return ret;
+}
+
+static int scull_setup(struct scull_dev *dev)
+{
+	int err; 
+	dev_t devno = MKDEV(scull_major, scull_minor);
+
+	cdev_init(&dev->cdev, &scull_fops);
+	dev->cdev.owner = THIS_MODULE;
+	dev->cdev.ops = &scull_fops;
+	err = cdev_add(&dev->cdev, devno, 1);
+
+	if (err)
+		printk(KERN_NOTICE "Scull: err %d add scull\n", err);
+
+	sema_init(&dev->sem, 1);
+
+	return err;
+}
+
+static int scull_mem(struct scull_dev *dev)
+{
+	int ret = 0;
+
+	dev->data = kmalloc(256, GFP_KERNEL);
+	if (NULL == dev->data)
+		ret = -ENOMEM;
+	memset(dev->data, 0, 256);
+	dev->size = 256;
+
+	return ret;
+}
+
+static int __init scull_init(void)
+{
+	int ret = 0;
+	sdev = kmalloc(sizeof(*sdev), GFP_KERNEL);
+	if (NULL == sdev)
+		return -ENOMEM;
+
+	memset(sdev, 0, sizeof(*sdev));
+
+	if (scull_reg(sdev)) {
+		ret = -EFAULT;
+		goto fault;
+	}
+
+	if (scull_setup(sdev)) {
+		ret = -EFAULT;
+		goto fault;
+	}
+
+	if (scull_mem(sdev)) {
+		ret = -ENOMEM;
+		goto fault;
+	}
+
+	return ret;
+
+fault:
+	kfree(sdev);
+	return ret;
+}
+
+
+static void __exit scull_exit(void)
+{
+	dev_t devno;
+
+        devno = MKDEV(scull_major, scull_minor);
+	unregister_chrdev_region(devno, 1);
+
+	kfree(sdev->data);
+	kfree(sdev);
+}
+
+module_init(scull_init);
+module_exit(scull_exit);
