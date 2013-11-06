@@ -2,7 +2,7 @@
 ifneq ($(KERNELRELEASE),)
 	obj-m := hello.o
 else
-	KERNELDIR ?= /lib/modules/3.11.6-200.fc19.x86_64/build/
+	KERNELDIR ?= /lib/modules/$(shell uname -r)/build/
 	PWD := $(shell pwd)
 default:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
