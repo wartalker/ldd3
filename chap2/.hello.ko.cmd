@@ -1,1 +1,1 @@
-cmd_/home/wartalker/Src/ldd/chap2/hello.ko := ld -r -m elf_x86_64 -T /usr/src/kernels/3.11.6-200.fc19.x86_64/scripts/module-common.lds --build-id  -o /home/wartalker/Src/ldd/chap2/hello.ko /home/wartalker/Src/ldd/chap2/hello.o /home/wartalker/Src/ldd/chap2/hello.mod.o
+cmd_/home/wartalker/Src/ldd3/chap2/hello.ko := ld -r -m elf_x86_64 -T /usr/src/kernels/3.11.6-200.fc19.x86_64/scripts/module-common.lds --build-id  -o /home/wartalker/Src/ldd3/chap2/hello.ko /home/wartalker/Src/ldd3/chap2/hello.o /home/wartalker/Src/ldd3/chap2/hello.mod.o

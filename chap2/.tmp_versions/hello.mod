@@ -1,2 +1,2 @@
-/home/wartalker/Src/ldd/chap2/hello.ko
-/home/wartalker/Src/ldd/chap2/hello.o
+/home/wartalker/Src/ldd3/chap2/hello.ko
+/home/wartalker/Src/ldd3/chap2/hello.o

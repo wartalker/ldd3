@@ -79,6 +79,7 @@ static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, lof
 
 	if (f_pos)
 		*f_pos += count;
+
 	ret = count;
 
 final:
@@ -178,7 +179,7 @@ static int scull_mem(struct scull_dev *dev)
 	return ret;
 }
 
-struct file_operations scull_proc_fops = {
+static struct file_operations scull_proc_fops = {
 	.read = scull_proc_read,
 };
 
