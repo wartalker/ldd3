@@ -173,7 +173,7 @@ static ssize_t scull_proc_read(struct file *filp, char __user *buf, size_t count
 	if (0 < *f_pos)
 		return 0;
 
-	len = snprintf(buf, 255, "%d\n", (int)sdev->size);
+	len = snprintf(buf, count, "%d\n", (int)sdev->size);
 	*f_pos = len;
 
 	return len;
@@ -207,7 +207,6 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_
 	n = simple_strtoul(str, &endp, 10);
 
 	if (1024 < n || 0 == n) {
-		printk(KERN_INFO "scull: size illegal\n");
 		ret = -EFAULT;
 		goto fail;
 	}
@@ -220,7 +219,6 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_
 
 	kfree(sdev->data);
 	sdev->data = dp;
-	dp = NULL;
 	sdev->size = n;
 	*f_pos += count;
 	ret = count;
