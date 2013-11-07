@@ -77,8 +77,7 @@ static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, lof
 		goto final;
 	}
 
-	if (f_pos)
-		*f_pos += count;
+	*f_pos += count;
 
 	ret = count;
 
@@ -144,9 +143,6 @@ static int scull_setup(struct scull_dev *dev)
 	dev->cdev.ops = &scull_fops;
 	err = cdev_add(&dev->cdev, devno, 1);
 
-	if (err)
-		printk(KERN_NOTICE "Scull: err %d add scull\n", err);
-
 	sema_init(&dev->sem, 1);
 
 	return err;
@@ -157,11 +153,15 @@ static int scull_mem(struct scull_dev *dev)
 	int ret = 0;
 
 	dev->data = kmalloc(256, GFP_KERNEL);
-	if (NULL == dev->data)
+	if (NULL == dev->data) {
 		ret = -ENOMEM;
+		goto final;
+	}
+
 	memset(dev->data, 0, 256);
 	dev->size = 256;
 
+final:
 	return ret;
 }
 
@@ -190,7 +190,7 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_
 
 	str = kmalloc(32, GFP_KERNEL);
 	if (NULL == str)
-		return ret;
+		goto fail;
 
 	memset(str, 0, 32);
 	if (32 < count || 0 != *f_pos) {
