@@ -95,7 +95,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buf, size_t cou
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
 
-	if (*f_pos > dev->size)
+	if (*f_pos >= dev->size)
 		goto final;
 
 	if (*f_pos + count > dev->size)
@@ -106,9 +106,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buf, size_t cou
 		goto final;
 	}	
 
-	if (*f_pos)
-		*f_pos += count;
-
+	*f_pos += count;
 	ret = count;
 
 final:
@@ -116,18 +114,6 @@ final:
 	return ret;
 }
 
-static ssize_t scull_proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
-{
-	int len = 0;
-
-	if (0 < *f_pos)
-		return 0;
-
-	len = snprintf(buf, 255, "scull: size = %d\n", (int)sdev->size);
-	*f_pos = len;
-
-	return len;
-}
 
 struct file_operations scull_fops = {
 	.owner = THIS_MODULE,
@@ -179,8 +165,75 @@ static int scull_mem(struct scull_dev *dev)
 	return ret;
 }
 
+
+static ssize_t scull_proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+{
+	int len = 0;
+
+	if (0 < *f_pos)
+		return 0;
+
+	len = snprintf(buf, 255, "%d\n", (int)sdev->size);
+	*f_pos = len;
+
+	return len;
+}
+
+static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+{
+	char *str, *dp, *endp;
+	unsigned long n;
+	int ret = -ENOMEM;
+
+	if (down_interruptible(&sdev->sem))
+		return -ERESTARTSYS;
+
+	str = kmalloc(32, GFP_KERNEL);
+	if (NULL == str)
+		return ret;
+
+	memset(str, 0, 32);
+	if (32 < count || 0 != *f_pos) {
+		ret = -EFAULT;
+		goto fail;
+	}
+
+	if (copy_from_user(str, buf, count)) {
+		ret = -EFAULT;
+		goto fail;
+	}
+
+	endp = str + count;
+	n = simple_strtoul(str, &endp, 10);
+
+	if (1024 < n || 0 == n) {
+		printk(KERN_INFO "scull: size illegal\n");
+		ret = -EFAULT;
+		goto fail;
+	}
+
+	dp = kmalloc(n, GFP_KERNEL);
+	if (NULL == dp)
+		goto fail;
+
+	memset(dp, 0, n);
+
+	kfree(sdev->data);
+	sdev->data = dp;
+	dp = NULL;
+	sdev->size = n;
+	*f_pos += count;
+	ret = count;
+
+fail:
+	kfree(str);
+	up(&sdev->sem);
+	return ret;
+}
+
 static struct file_operations scull_proc_fops = {
 	.read = scull_proc_read,
+	.write = scull_proc_write,
 };
 
 static void scull_proc_init(void)
