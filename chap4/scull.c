@@ -7,8 +7,6 @@
  *
  *        Version:  1.0
  *        Created:  11/04/2013 03:02:11 PM
- *       Revision:  none
- *       Compiler:  gcc
  *
  *         Author:  wartalker (LiuWei), wartalker@gmail.com
  *   Organization:  
@@ -78,7 +76,6 @@ static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, lof
 	}
 
 	*f_pos += count;
-
 	ret = count;
 
 final:
@@ -150,19 +147,13 @@ static int scull_setup(struct scull_dev *dev)
 
 static int scull_mem(struct scull_dev *dev)
 {
-	int ret = 0;
-
 	dev->data = kmalloc(256, GFP_KERNEL);
-	if (NULL == dev->data) {
-		ret = -ENOMEM;
-		goto final;
-	}
-
+	if (NULL == dev->data)
+		return -ENOMEM;
 	memset(dev->data, 0, 256);
 	dev->size = 256;
 
-final:
-	return ret;
+	return 0;
 }
 
 
@@ -173,7 +164,7 @@ static ssize_t scull_proc_read(struct file *filp, char __user *buf, size_t count
 	if (0 < *f_pos)
 		return 0;
 
-	len = snprintf(buf, count, "%d\n", (int)sdev->size);
+	len = snprintf(buf, 255, "%d\n", (int)sdev->size);
 	*f_pos = len;
 
 	return len;
@@ -190,7 +181,7 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_
 
 	str = kmalloc(32, GFP_KERNEL);
 	if (NULL == str)
-		goto fail;
+		return ret;
 
 	memset(str, 0, 32);
 	if (32 < count || 0 != *f_pos) {
@@ -207,6 +198,7 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_
 	n = simple_strtoul(str, &endp, 10);
 
 	if (1024 < n || 0 == n) {
+		printk(KERN_INFO "scull: size illegal\n");
 		ret = -EFAULT;
 		goto fail;
 	}
