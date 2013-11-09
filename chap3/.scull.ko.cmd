@@ -1,1 +1,0 @@
-cmd_/home/wartalker/Src/ldd3/chap3/scull.ko := ld -r -m elf_x86_64 -T /usr/src/kernels/3.11.6-200.fc19.x86_64/scripts/module-common.lds --build-id  -o /home/wartalker/Src/ldd3/chap3/scull.ko /home/wartalker/Src/ldd3/chap3/scull.o /home/wartalker/Src/ldd3/chap3/scull.mod.o
