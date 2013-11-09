@@ -24,6 +24,8 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
+#include <linux/ioctl.h>
+
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -34,10 +36,7 @@ struct scull_dev {
 	struct cdev cdev;
 };
 
-
 int scull_major = 0;
-int scull_minor = 0;
-
 static struct scull_dev *sdev;
 
 static int scull_open(struct inode *inode, struct file *filp)
@@ -50,13 +49,13 @@ static int scull_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-
 static int scull_release(struct inode *inode, struct file *filp)
 {
 	return 0;
 }
 
-static ssize_t scull_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t scull_read(struct file *filp, char __user *buf,
+	       size_t count, loff_t *f_pos)
 {
 	struct scull_dev *dev = filp->private_data;
 	ssize_t ret = 0;
@@ -83,7 +82,8 @@ final:
 	return ret;
 }
 
-static ssize_t scull_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t scull_write(struct file *filp, const char __user *buf, 
+		size_t count, loff_t *f_pos)
 {
 	struct scull_dev *dev = filp->private_data;
 	ssize_t ret = -ENOMEM;
@@ -110,6 +110,58 @@ final:
 	return ret;
 }
 
+#define SCULL_MAGIC	's'
+#define SCULL_SET	_IOW(SCULL_MAGIC, 1, int)
+#define SCULL_GET	_IOW(SCULL_MAGIC, 2, int)
+#define SCULL_MAX	4
+
+static long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	int err = 0;
+	int ret = 0;
+	int size;
+
+	if (SCULL_MAGIC != _IOC_TYPE(cmd))
+		return -ENOTTY;
+
+	if (SCULL_MAX < _IOC_NR(cmd))
+		return -ENOTTY;
+
+	if (_IOC_DIR(cmd) & _IOC_READ)
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+
+	if (_IOC_DIR(cmd) & _IOC_WRITE)
+		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+
+	if (err)
+		return -EFAULT;
+
+	if (down_interruptible(&sdev->sem))
+		return -ERESTARTSYS;
+
+	switch (cmd) {
+
+		case SCULL_GET:
+			ret = __put_user(sdev->size, (int __user *)arg);
+			break;
+
+		case SCULL_SET:
+			ret = __get_user(size, (int __user *)arg);
+			if ((0 == ret) && (size != sdev->size)) {
+				kfree(sdev->data);
+				sdev->data = kmalloc(size, GFP_KERNEL);
+				if (NULL == sdev->data)
+					ret = -ENOMEM;
+			}
+			break;
+
+		default:
+			ret = -ENOTTY;
+	}
+
+	up(&sdev->sem);
+	return ret;
+}
 
 struct file_operations scull_fops = {
 	.owner = THIS_MODULE,
@@ -117,6 +169,8 @@ struct file_operations scull_fops = {
 	.read = scull_read,
 	.write = scull_write,
 	.release = scull_release,
+	.unlocked_ioctl = scull_ioctl,
+	.compat_ioctl = scull_ioctl,
 };
 
 static int scull_reg(struct scull_dev *dev)
@@ -124,7 +178,7 @@ static int scull_reg(struct scull_dev *dev)
 	int ret;
 	dev_t dt = 0;
 
-	ret = alloc_chrdev_region(&dt, scull_minor, 1, "scull");
+	ret = alloc_chrdev_region(&dt, 0, 1, "scull");
 	scull_major = MAJOR(dt);
 
 	return ret;
@@ -133,7 +187,7 @@ static int scull_reg(struct scull_dev *dev)
 static int scull_setup(struct scull_dev *dev)
 {
 	int err; 
-	dev_t devno = MKDEV(scull_major, scull_minor);
+	dev_t devno = MKDEV(scull_major, 0);
 
 	sema_init(&dev->sem, 1);
 
@@ -157,7 +211,8 @@ static int scull_mem(struct scull_dev *dev)
 }
 
 
-static ssize_t scull_proc_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t scull_proc_read(struct file *filp, char __user *buf, 
+		size_t count, loff_t *f_pos)
 {
 	int len = 0;
 
@@ -175,7 +230,8 @@ final:
 	return len;
 }
 
-static ssize_t scull_proc_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
+static ssize_t scull_proc_write(struct file *filp, const char __user *buf, 
+		size_t count, loff_t *f_pos)
 {
 	char *str, *dp, *endp;
 	unsigned long n;
@@ -235,6 +291,7 @@ static void scull_proc_init(void)
 	proc_create("scull", 0666, NULL, &scull_proc_fops);
 }
 
+
 static int __init scull_init(void)
 {
 	int ret = 0;
@@ -273,7 +330,7 @@ static void __exit scull_exit(void)
 {
 	dev_t devno;
 
-        devno = MKDEV(scull_major, scull_minor);
+        devno = MKDEV(scull_major, 0);
 	unregister_chrdev_region(devno, 1);
 
 	kfree(sdev->data);
