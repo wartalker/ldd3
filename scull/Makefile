@@ -1,6 +1,6 @@
 
 ifneq ($(KERNELRELEASE),)
-	obj-m := hello.o
+	obj-m := scull.o
 else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build/
 	PWD := $(shell pwd)
@@ -9,4 +9,4 @@ default:
 endif
 
 clean:
-	rm -f *.o *.ko *.mod.c modules.order Module.symvers
+	rm -rf *.o *.ko *.mod.c modules.order Module.symvers .*.cmd .tmp_versions
