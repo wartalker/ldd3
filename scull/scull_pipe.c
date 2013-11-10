@@ -113,7 +113,7 @@ static ssize_t scull_write(struct file *filp, const char __user *buf,
 			return -EAGAIN;
 
 		if (wait_event_interruptible(dev->wq, 
-					((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
+				((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
 			return -ERESTARTSYS;
 
 		if (down_interruptible(&dev->sem))
@@ -204,22 +204,17 @@ struct file_operations scull_fops = {
 	.compat_ioctl = scull_ioctl,
 };
 
-static int scull_reg(struct scull_dev *dev)
-{
-	int ret;
-	dev_t dt = 0;
-
-	ret = alloc_chrdev_region(&dt, 0, 1, "scull");
-	scull_major = MAJOR(dt);
-
-	return ret;
-}
-
 static int scull_setup(struct scull_dev *dev)
 {
+	dev_t devno;
 	int err; 
-	dev_t devno = MKDEV(scull_major, 0);
 
+	err = alloc_chrdev_region(&devno, 0, 1, "scull");
+	if (err)
+		return err;
+
+	scull_major = MAJOR(devno);
+	devno = MKDEV(scull_major, 0);
 	init_waitqueue_head(&sdev->rq);
 	init_waitqueue_head(&sdev->wq);
 	sema_init(&dev->sem, 1);
@@ -334,11 +329,6 @@ static int __init scull_init(void)
 		return -ENOMEM;
 
 	memset(sdev, 0, sizeof(*sdev));
-
-	if (scull_reg(sdev)) {
-		ret = -EFAULT;
-		goto fault;
-	}
 
 	if (scull_setup(sdev)) {
 		ret = -EFAULT;
