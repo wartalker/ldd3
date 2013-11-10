@@ -25,14 +25,18 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <linux/ioctl.h>
-
+#include <linux/wait.h>
+#include <linux/sched.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct scull_dev {
-	char * data;
+	char *data;
+	char *rp, *wp; 
 	unsigned long size;
 	struct semaphore sem;
+	wait_queue_head_t rq;
+	wait_queue_head_t wq;
 	struct cdev cdev;
 };
 
@@ -58,56 +62,81 @@ static ssize_t scull_read(struct file *filp, char __user *buf,
 	       size_t count, loff_t *f_pos)
 {
 	struct scull_dev *dev = filp->private_data;
-	ssize_t ret = 0;
+	char *end = dev->data + dev->size;
 
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
 
-	if (*f_pos > dev->size)
-		goto final;
+	while (dev->rp == dev->wp) {
+		up(&dev->sem);
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
 
-	if (*f_pos + count > dev->size)
-		count = dev->size - *f_pos;
+		if (wait_event_interruptible(dev->rq, (dev->rp != dev->wp)))
+			return -ERESTARTSYS;
 
-	if (copy_to_user(buf, dev->data + *f_pos, count)) {
-		ret = -EFAULT;
-		goto final;
+		if (down_interruptible(&dev->sem))
+			return -ERESTARTSYS;
 	}
 
-	*f_pos += count;
-	ret = count;
+	if (dev->wp > dev->rp)
+		count = min(dev->wp - dev->rp, count);
+	else
+		count = min(end - dev->rp, count);
 
-final:
+	if (copy_to_user(buf, dev->rp, count)) {
+		up(&dev->sem);
+		return -EFAULT;
+	}
+
+	dev->rp += count;
+	if (dev->rp == end)
+		dev->rp = dev->data;
 	up(&dev->sem);
-	return ret;
+	wake_up_interruptible(&dev->wq);
+	return count;
 }
 
 static ssize_t scull_write(struct file *filp, const char __user *buf, 
 		size_t count, loff_t *f_pos)
 {
 	struct scull_dev *dev = filp->private_data;
-	ssize_t ret = -ENOMEM;
+	char *end = dev->data + dev->size;
 
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
 
-	if (*f_pos >= dev->size)
-		goto final;
+	while ((dev->size == dev->wp - dev->rp) || (dev->wp + 1 == dev->rp)) {
+		up(&dev->sem);
 
-	if (*f_pos + count > dev->size)
-		count = dev->size - *f_pos;
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
 
-	if (copy_from_user(dev->data + *f_pos, buf, count)) {
-		ret = -EFAULT;
-		goto final;
+		if (wait_event_interruptible(dev->wq, ((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
+			return -ERESTARTSYS;
+
+		if (down_interruptible(&dev->sem))
+			return -ERESTARTSYS;
+	}
+
+	if (dev->rp <= dev->wp)
+		count = min((size_t)(end - dev->wp), count);
+	else
+		count = min((size_t)(dev->rp - dev->wp - 1), count);
+
+	if (copy_from_user(dev->wp, buf, count)) {
+		up(&dev->sem);
+		 return -EFAULT;
 	}	
 
-	*f_pos += count;
-	ret = count;
+	dev->wp += count;
+	if (end == dev->wp)
+		dev->wp = dev->data;
 
-final:
 	up(&dev->sem);
-	return ret;
+	wake_up_interruptible(&dev->rq);
+
+	return count;
 }
 
 #define SCULL_MAGIC	's'
@@ -150,6 +179,7 @@ static long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			if ((0 == ret) && (size != sdev->size)) {
 				kfree(sdev->data);
 				sdev->data = kmalloc(size, GFP_KERNEL);
+				sdev->rp = sdev->wp = sdev->data;
 				if (NULL == sdev->data)
 					ret = -ENOMEM;
 			}
@@ -189,6 +219,8 @@ static int scull_setup(struct scull_dev *dev)
 	int err; 
 	dev_t devno = MKDEV(scull_major, 0);
 
+	init_waitqueue_head(&sdev->rq);
+	init_waitqueue_head(&sdev->wq);
 	sema_init(&dev->sem, 1);
 
 	cdev_init(&dev->cdev, &scull_fops);
@@ -206,6 +238,7 @@ static int scull_mem(struct scull_dev *dev)
 		return -ENOMEM;
 	memset(dev->data, 0, 256);
 	dev->size = 256;
+	dev->rp = dev->wp = dev->data;
 
 	return 0;
 }
@@ -270,7 +303,7 @@ static ssize_t scull_proc_write(struct file *filp, const char __user *buf,
 	memset(dp, 0, n);
 
 	kfree(sdev->data);
-	sdev->data = dp;
+	sdev->rp = sdev->wp = sdev->data = dp;
 	sdev->size = n;
 	*f_pos += count;
 	ret = count;
