@@ -32,7 +32,8 @@ MODULE_LICENSE("Dual BSD/GPL");
 
 struct scull_dev {
 	char *data;
-	char *rp, *wp; 
+	char *rp; 
+	char *wp; 
 	unsigned long size;
 	struct semaphore sem;
 	wait_queue_head_t rq;
