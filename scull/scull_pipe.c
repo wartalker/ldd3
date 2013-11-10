@@ -98,6 +98,14 @@ static ssize_t scull_read(struct file *filp, char __user *buf,
 	return count;
 }
 
+static size_t space_free(struct scull_dev *dev)
+{
+	if (dev->wp == dev->rp)
+		return dev->size - 1;
+
+	return (dev->rp + dev->size - dev->wp) % dev->size - 1;
+}
+
 static ssize_t scull_write(struct file *filp, const char __user *buf, 
 		size_t count, loff_t *f_pos)
 {
@@ -107,24 +115,25 @@ static ssize_t scull_write(struct file *filp, const char __user *buf,
 	if (down_interruptible(&dev->sem))
 		return -ERESTARTSYS;
 
-	while ((dev->size == dev->wp - dev->rp) || (dev->wp + 1 == dev->rp)) {
+	while (0 == space_free(dev)) {
 		up(&dev->sem);
 
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 
-		if (wait_event_interruptible(dev->wq, 
-				((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
+		if (wait_event_interruptible(dev->wq, (0 < space_free(dev))))
 			return -ERESTARTSYS;
 
 		if (down_interruptible(&dev->sem))
 			return -ERESTARTSYS;
 	}
 
-	if (dev->rp <= dev->wp)
-		count = min((size_t)(end - dev->wp), count);
+	count = min(space_free(dev), count);
+
+	if (dev->wp >= dev->rp)
+		count = min(count, (size_t)(end - dev->wp));
 	else
-		count = min((size_t)(dev->rp - dev->wp - 1), count);
+		count = min(count, (size_t)(dev->rp - dev->wp - 1));
 
 	if (copy_from_user(dev->wp, buf, count)) {
 		up(&dev->sem);
@@ -321,6 +330,11 @@ static void scull_proc_init(void)
 	proc_create("scull", 0666, NULL, &scull_proc_fops);
 }
 
+static void scull_proc_exit(void)
+{
+	remove_proc_entry("scull", NULL);
+}
+
 
 static int __init scull_init(void)
 {
@@ -361,7 +375,7 @@ static void __exit scull_exit(void)
 	kfree(sdev->data);
 	kfree(sdev);
 
-	remove_proc_entry("scull", NULL);
+	scull_proc_exit();
 }
 
 module_init(scull_init);
