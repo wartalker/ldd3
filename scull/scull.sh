@@ -1,6 +1,6 @@
 #!/bin/bash
 
-module="scull"
+module="scull_pipe"
 device="scull"
 mode="664"
 

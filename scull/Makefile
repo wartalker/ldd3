@@ -1,6 +1,6 @@
 
 ifneq ($(KERNELRELEASE),)
-	obj-m := scull.o
+	obj-m := scull_pipe.o
 else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build/
 	PWD := $(shell pwd)

@@ -80,9 +80,9 @@ static ssize_t scull_read(struct file *filp, char __user *buf,
 	}
 
 	if (dev->wp > dev->rp)
-		count = min(dev->wp - dev->rp, count);
+		count = min((size_t)(dev->wp - dev->rp), count);
 	else
-		count = min(end - dev->rp, count);
+		count = min((size_t)(end - dev->rp), count);
 
 	if (copy_to_user(buf, dev->rp, count)) {
 		up(&dev->sem);
@@ -112,7 +112,8 @@ static ssize_t scull_write(struct file *filp, const char __user *buf,
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 
-		if (wait_event_interruptible(dev->wq, ((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
+		if (wait_event_interruptible(dev->wq, 
+					((dev->wp - dev->rp != dev->size) && (dev->wp - dev->rp != 1))))
 			return -ERESTARTSYS;
 
 		if (down_interruptible(&dev->sem))
