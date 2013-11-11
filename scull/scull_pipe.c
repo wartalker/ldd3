@@ -1,11 +1,11 @@
 /*
  * =====================================================================================
  *
- *       Filename:  scull.c
+ *       Filename:  scull_pipe.c
  *
  *    Description:  
  *
- *        Version:  1.0
+ *        Version:  3.1415
  *        Created:  11/04/2013 03:02:11 PM
  *
  *         Author:  wartalker (LiuWei), wartalker@gmail.com
@@ -27,6 +27,7 @@
 #include <linux/ioctl.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
+#include <linux/poll.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -41,7 +42,7 @@ struct scull_dev {
 	struct cdev cdev;
 };
 
-int scull_major = 0;
+static int scull_major = 0;
 static struct scull_dev *sdev;
 
 static int scull_open(struct inode *inode, struct file *filp)
@@ -150,6 +151,24 @@ static ssize_t scull_write(struct file *filp, const char __user *buf,
 	return count;
 }
 
+static unsigned int scull_poll(struct file *filp, struct poll_table_struct *wait)
+{
+	struct scull_dev *dev = filp->private_data;
+	unsigned int mask = 0;
+
+	down(&dev->sem);
+	poll_wait(filp, &dev->rq, wait);
+	poll_wait(filp, &dev->wq, wait);
+
+	if (dev->rp != dev->wp)
+		mask |= POLLIN | POLLRDNORM;
+	if (0 < space_free(dev))
+		mask |= POLLOUT | POLLWRNORM;
+	up(&dev->sem);
+
+	return mask;
+}
+
 #define SCULL_MAGIC	's'
 #define SCULL_SET	_IOW(SCULL_MAGIC, 1, int)
 #define SCULL_GET	_IOW(SCULL_MAGIC, 2, int)
@@ -209,6 +228,7 @@ struct file_operations scull_fops = {
 	.open = scull_open,
 	.read = scull_read,
 	.write = scull_write,
+	.poll = scull_poll,
 	.release = scull_release,
 	.unlocked_ioctl = scull_ioctl,
 	.compat_ioctl = scull_ioctl,
