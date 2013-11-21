@@ -17,7 +17,6 @@
 
 #include <linux/init.h>
 #include <linux/module.h>
-#include <asm/uaccess.h>
 #include <linux/device.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
