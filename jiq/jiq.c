@@ -104,8 +104,8 @@ static void jiq_proc_exit(void)
 
 static int __init jiq_init(void)
 {
-	jiq_proc_init();
 	INIT_DELAYED_WORK(&jiq_data.work, jiq_print);
+	jiq_proc_init();
 
 	return 0;
 }
