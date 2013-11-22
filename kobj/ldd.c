@@ -1,12 +1,12 @@
 /*
  * =====================================================================================
  *
- *       Filename:  ldd_pipe.c
+ *       Filename:  ldd.c
  *
  *    Description:  
  *
  *        Version:  3.1415
- *        Created:  11/04/2013 03:02:11 PM
+ *        Created:  11/21/2013 
  *
  *         Author:  wartalker (LiuWei), wartalker@gmail.com
  *   Organization:  
@@ -50,9 +50,7 @@ static int __init ldd_init(void)
 	if (ret)
 		return ret;
 
-	ret = device_register(&ldd_bus);
-
-	return ret;
+	return device_register(&ldd_bus);
 }
 
 
