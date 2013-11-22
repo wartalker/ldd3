@@ -389,13 +389,14 @@ static void __exit scull_exit(void)
 {
 	dev_t devno;
 
+	scull_proc_exit();
+
         devno = MKDEV(scull_major, 0);
 	unregister_chrdev_region(devno, 1);
 
 	kfree(sdev->data);
 	kfree(sdev);
 
-	scull_proc_exit();
 }
 
 module_init(scull_init);
