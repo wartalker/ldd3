@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  scull_pipe.c
- *
- *    Description:  
- *
- *        Version:  3.1415
- *        Created:  11/04/2013 03:02:11 PM
- *
- *         Author:  wartalker (LiuWei), wartalker@gmail.com
- *   Organization:  
- *
- * =====================================================================================
- */
-
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <asm/uaccess.h>

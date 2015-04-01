@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  jiff_pipe.c
- *
- *    Description:  
- *
- *        Version:  3.1415
- *        Created:  11/04/2013 03:02:11 PM
- *
- *         Author:  wartalker (LiuWei), wartalker@gmail.com
- *   Organization:  
- *
- * =====================================================================================
- */
-
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
@@ -29,7 +12,7 @@ static ssize_t jiff_proc_read(struct file *filp, char __user *buf,
 	int len = 0;
 	u64 jiff;
 
-//       	jiff = get_jiffies_64();
+//      jiff = get_jiffies_64();
 	rdtscll(jiff);
 
 	if (0 < *f_pos)

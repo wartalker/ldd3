@@ -1,20 +1,3 @@
-/*
- * =====================================================================================
- *
- *       Filename:  ldd.c
- *
- *    Description:  
- *
- *        Version:  3.1415
- *        Created:  11/21/2013 
- *
- *         Author:  wartalker (LiuWei), wartalker@gmail.com
- *   Organization:  
- *
- * =====================================================================================
- */
-
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/device.h>
